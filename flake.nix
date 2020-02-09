@@ -29,7 +29,7 @@
 
       defaultPackage = forAllSystems (pkgs: pkgs.home-manager);
 
-      homeConfiguration.exampleOnDarwin = self.packages.x86_64-darwin.mkHome {
+      homeConfiguration = self.packages.x86_64-darwin.mkHome {
         home.homeDirectory = "/home/username";
         home.username = "username";
       };
