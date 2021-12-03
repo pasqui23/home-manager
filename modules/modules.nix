@@ -26,6 +26,7 @@ let
     ./misc/debug.nix
     ./misc/fontconfig.nix
     ./misc/gtk.nix
+    ./misc/kde/kconfig.nix
     ./misc/lib.nix
     ./misc/news.nix
     ./misc/numlock.nix
