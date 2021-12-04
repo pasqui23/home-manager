@@ -27,6 +27,7 @@ let
     ./misc/fontconfig.nix
     ./misc/gtk.nix
     ./misc/kde/kconfig.nix
+    ./misc/kde/theme.nix
     ./misc/lib.nix
     ./misc/news.nix
     ./misc/numlock.nix
