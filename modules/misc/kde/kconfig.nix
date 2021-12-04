@@ -2,20 +2,16 @@
 let
   cfg = config.qt.kde.settings;
   inherit (builtins) toJSON;
-  inherit (lib) types;
-  inherit (types) attrsOf oneOf nullOr str int bool;
-  valT = with types;nullOr oneOf [ str int bool ] // {
-    apply = v:
-      if v == null then "--delete"
-      else ((lib.optionalString (lib.isBool v) "--type bool ") + (toJSON v));
-  };
-  keyT = types.attrsOf valT;
-  groupT = with types;attrsOf (oneOf [ groupT keyT ]);
+  toKconfVal = p: v:
+    let t = builtins.typeOf v; in
+    if t == "set" then v
+    else if v == null then "--delete"
+    else ((lib.optionalString (t == "bool") "--type bool ") + (toJSON v));
 
 in
 {
   options.qt.kde.settings = lib.mkOption {
-    type = attrsOf groupT;
+    type = lib.types.anything;
     default = { };
     example = lib.literalExample ''
       { powermanagementprofilesrc.AC.HandleButtonEvents.lidAction = 32;}
@@ -32,28 +28,29 @@ in
   };
 
   config = lib.mkIf (cfg != { }) {
-    home.activation.kconfig = lib.hm.dag.entryAfter [ "writeBoundary" ] (
-      pkgs.runCommandLocal "kwriteconfig.sh"
+    home.activation.kconfig = lib.hm.dag.entryAfter [ "writeBoundary" ]
+      "${pkgs.runCommandLocal "kwriteconfig.sh"
         {
           nativeBuildInputs = [ pkgs.jq ];
-          passAsFile = [ "cfg" ];
-          cfg = toJSON cfg;
+          passAsFile = [ "cfg" "jqScript" ];
+          cfg = toJSON (lib.mapAttrsRecursive toKconfVal cfg);
           jqScript =
             let
               getPaths = "[paths(scalars)]";
-              groupPortion = ''reduce .[1:-2]|map(" --group "+.) as $i ("";$i+.)'';
-              getVal = "$G|getpath($P)";
               w = "$DRY_RUN_CMD ${pkgs.plasma5Packages.kconfig}/bin/kwriteconfig5 --file ${config.xdg.configHome}/";
-              mkExecLn = ''"${w}"+.[0]+(${groupPortion})+" --key "+.[-1]+(${getVal})'';
-              toSingleStr = ''reduce .[] as $l("";$l+"\n"+.)'';
+              g=''" --group "'';
+              groupPortion = ''.[1:-2]|join(${g})'';
+              getVal = "$G|getpath($P)";
+              mkExecLn = ''"${w}"+.[0]+${g}+(${groupPortion})+" --key "+.[-1]+(${getVal})'';
+              toSingleStr = ''join("\n")'';
             in
             ". as $G|${getPaths}|map(. as $P|${mkExecLn})|${toSingleStr}";
         }
         ''
           echo '#!${pkgs.bash}/bin/bash' >>$out
-          jq -r $jqScript <$cfgPath >>$out
+          jq -rf "$jqScriptPath" <$cfgPath >>$out
           chmod a+x $out
-        '');
+        ''}";
   };
 
 }
