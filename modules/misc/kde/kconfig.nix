@@ -32,28 +32,28 @@ in
   };
 
   config = lib.mkIf (cfg != { }) {
-    home.activation.kconfig = lib.hm.dag.entryAfter [ "writeBoundary" ]
+    home.activation.kconfig = lib.hm.dag.entryAfter [ "writeBoundary" ] (
       pkgs.runCommandLocal "kwriteconfig.sh"
-      {
-        nativeBuildInputs = [ pkgs.jq ];
-        passAsFile = [ "cfg" ];
-        cfg = toJSON cfg;
-        jqScript =
-          let
-            getPaths = "[paths(scalars)]";
-            groupPortion = ''reduce .[1:-2]|map(" --group "+.) as $i ("";$i+.)'';
-            getVal = "$G|getpath($P)";
-            w = "$DRY_RUN_CMD ${pkgs.plasma5Packages.kconfig}/bin/kwriteconfig5 --file ${config.xdg.configHome}/";
-            mkExecLn = ''"${w}"+.[0]+(${groupPortion})+" --key "+.[-1]+(${getVal})'';
-            toSingleStr = ''reduce .[] as $l("";$l+"\n"+.)'';
-          in
-          ". as $G|${getPaths}|map(. as $P|${mkExecLn})|${toSingleStr}";
-      }
-      ''
-        echo '#!${pkgs.bash}/bin/bash' >>$out
-        jq -r $jqScript <$cfgPath >>$out
-        chmod a+x $out
-      '';
+        {
+          nativeBuildInputs = [ pkgs.jq ];
+          passAsFile = [ "cfg" ];
+          cfg = toJSON cfg;
+          jqScript =
+            let
+              getPaths = "[paths(scalars)]";
+              groupPortion = ''reduce .[1:-2]|map(" --group "+.) as $i ("";$i+.)'';
+              getVal = "$G|getpath($P)";
+              w = "$DRY_RUN_CMD ${pkgs.plasma5Packages.kconfig}/bin/kwriteconfig5 --file ${config.xdg.configHome}/";
+              mkExecLn = ''"${w}"+.[0]+(${groupPortion})+" --key "+.[-1]+(${getVal})'';
+              toSingleStr = ''reduce .[] as $l("";$l+"\n"+.)'';
+            in
+            ". as $G|${getPaths}|map(. as $P|${mkExecLn})|${toSingleStr}";
+        }
+        ''
+          echo '#!${pkgs.bash}/bin/bash' >>$out
+          jq -r $jqScript <$cfgPath >>$out
+          chmod a+x $out
+        '');
   };
 
 }
