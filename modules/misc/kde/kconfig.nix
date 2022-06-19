@@ -13,7 +13,7 @@ in
   options.qt.kde.settings = lib.mkOption {
     type = lib.types.anything;
     default = { };
-    example = lib.literalExample ''
+    example = lib.literalExpression ''
       { powermanagementprofilesrc.AC.HandleButtonEvents.lidAction = 32;}
     '';
     description = ''
