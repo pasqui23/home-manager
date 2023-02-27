@@ -34,11 +34,12 @@ let
 
   # TODO: On Darwin where are the extensions?
   extensionPath = ".${extensionDir}/extensions";
+  vscExtensionsShared = "share/vscode/extensions";
 
   extensionJson = pkgs.vscode-utils.toExtensionJson cfg.extensions;
   extensionJsonFile = pkgs.writeTextFile {
     name = "extensions-json";
-    destination = "/share/vscode/extensions/extensions.json";
+    destination = "/${vscExtensionsShared}/extensions.json";
     text = extensionJson;
   };
 
@@ -209,40 +210,31 @@ in {
             jsonFormat.generate "vscode-keybindings"
             (map dropNullFields cfg.keybindings);
         }))
-      (mkIf (cfg.extensions != [ ]) (let
-        subDir = "share/vscode/extensions";
-
+      (mkIf (cfg.extensions != [ ]) {
+        # Whenever our immutable extensions.json changes, force VSCode to regenerate
+        # extensions.json with both mutable and immutable extensions.
+        "${extensionPath}/.extensions-immutable.json" = {
+          enable = cfg.mutableExtensionsDir
+            && lib.versionAtLeast vscodeVersion "1.74.0";
+          text = extensionJson;
+          onChange = lib.mkIf cfg.mutableExtensionsDir ''
+            $DRY_RUN_CMD rm $VERBOSE_ARG -f ${extensionPath}/{extensions.json,.init-default-profile-extensions}
+            $VERBOSE_ECHO "Regenerating VSCode extensions.json"
+            $DRY_RUN_CMD ${getExe cfg.package} --list-extensions > /dev/null
+          '';
+        };
         # Adapted from https://discourse.nixos.org/t/vscode-extensions-setup/1801/2
-        toPaths = ext:
-          map (k: { "${extensionPath}/${k}".source = "${ext}/${subDir}/${k}"; })
-          (if ext ? vscodeExtUniqueId then
-            [ ext.vscodeExtUniqueId ]
-          else
-            builtins.attrNames (builtins.readDir (ext + "/${subDir}")));
-      in if cfg.mutableExtensionsDir then
-        mkMerge (concatMap toPaths cfg.extensions
-          ++ lib.optional (lib.versionAtLeast vscodeVersion "1.74.0") {
-            # Whenever our immutable extensions.json changes, force VSCode to regenerate
-            # extensions.json with both mutable and immutable extensions.
-            "${extensionPath}/.extensions-immutable.json" = {
-              text = extensionJson;
-              onChange = ''
-                $DRY_RUN_CMD rm $VERBOSE_ARG -f ${extensionPath}/{extensions.json,.init-default-profile-extensions}
-                $VERBOSE_ECHO "Regenerating VSCode extensions.json"
-                $DRY_RUN_CMD ${getExe cfg.package} --list-extensions > /dev/null
-              '';
-            };
-          })
-      else {
-        "${extensionPath}".source = let
-          combinedExtensionsDrv = pkgs.buildEnv {
+        "${extensionPath}" = {
+          source = pkgs.symlinkJoin {
             name = "vscode-extensions";
-            paths = cfg.extensions
-              ++ lib.optional (lib.versionAtLeast vscodeVersion "1.74.0")
-              extensionJsonFile;
+            paths = map (e: "${e}/${vscExtensionsShared}") (cfg.extensions
+              ++ lib.optional ((!cfg.mutableExtensionsDir)
+                && lib.versionAtLeast vscodeVersion "1.74.0")
+              extensionJsonFile);
           };
-        in "${combinedExtensionsDrv}/${subDir}";
-      }))
+          recursive = cfg.mutableExtensionsDir;
+        };
+      })
     ];
   };
 }
