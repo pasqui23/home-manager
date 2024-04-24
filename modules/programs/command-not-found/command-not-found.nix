@@ -48,6 +48,21 @@ in {
   config = mkIf cfg.enable {
     programs.bash.initExtra = shInit "command_not_found_handle";
     programs.zsh.initExtra = shInit "command_not_found_handler";
+    programs.nushell.configFile.text = ''
+      let-env config = {
+        hooks: {
+          command_not_found: {
+            |cmd_name| (
+              try {
+                ${commandNotFound}/bin/command-not-found "$@"
+              } catch {
+                null
+              }
+            )
+          }
+        }
+      }
+    '';
 
     home.packages = [ commandNotFound ];
   };
